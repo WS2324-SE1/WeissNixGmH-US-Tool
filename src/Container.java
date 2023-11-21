@@ -63,20 +63,45 @@ public class Container
         con.startEingabe();
     }
 
-    //takes a lambda expression as parameter
-    private void tryTillNumberEntered(Scanner scanner, String message, Consumer<Integer> consumer)
+	private static final Consumer<Integer> not_negative = (i) -> {
+		if (i < 0)
+		{
+			throw new IllegalArgumentException("Bitte geben Sie eine positive Zahl ein!");
+		}
+	};
+
+	private static final Consumer<Integer> not_zero = (i) -> {
+		if (i == 0)
+		{
+			throw new IllegalArgumentException("Bitte geben Sie eine Zahl ungleich 0 ein!");
+		}
+	};
+
+
+
+    //takes a lambda expression as parameter and a variable number of validators (also lambda expressions)
+    private void tryTillNumberEntered(Scanner scanner, String message, Consumer<Integer> consumer, Consumer<Integer>... validators)
     {
         while (true)
         {
             try
             {
                 System.out.println(message);
-                consumer.accept(Integer.parseInt(scanner.nextLine()));
+				int i = Integer.parseInt(scanner.nextLine());
+				for (Consumer<Integer> validator : validators)
+				{
+					validator.accept(i);
+				}
+				consumer.accept(i);
                 break;
             } catch (NumberFormatException e)
             {
                 System.out.println("Bitte geben Sie eine Zahl ein!");
             }
+			catch (IllegalArgumentException e)
+			{
+				System.out.println(e.getMessage());
+			}
         }
     }
 
@@ -104,74 +129,124 @@ public class Container
             String[] strings = strInput.split(" ");
 
             // 	Falls 'help' eingegeben wurde, werden alle Befehle ausgedruckt
-            if (strings[0].equals("help"))
+            switch (strings[0])
             {
-                System.out.println("Folgende Befehle stehen zur Verfuegung: help, dump....");
-            }
-            // Auswahl der bisher implementierten Befehle:
-            if (strings[0].equals("dump"))
-            {
-                startAusgabe();
-            }
-            // Auswahl der bisher implementierten Befehle:
-            if (strings[0].equals("enter"))
-            {
-                var new_user_story = new UserStory();
+                case "help" -> System.out.println("""
+                        Folgende Befehle sind verfügbar:
+                        \t- dump
+                        \t- enter
+                        \t- search
+                        \t- store
+                        \t- load
+                        \t- exit
+                        \t- help""");
 
-                new_user_story.setId(UUID.randomUUID());
+                // Auswahl der bisher implementierten Befehle:
+                case "dump" -> startAusgabe();
 
-                System.out.println("Bitte geben Sie einen Titel ein:");
-                new_user_story.setTitel(scanner.nextLine());
+                // Auswahl der bisher implementierten Befehle:
+                case "enter" ->
+                {
+                    var new_user_story = new UserStory();
+                    new_user_story.setId(UUID.randomUUID());
+                    System.out.println("Bitte geben Sie einen Titel ein:");
+                    new_user_story.setTitel(scanner.nextLine());
+                    System.out.println("Bitte geben Sie einen Wert für das Projekt ein:");
+                    new_user_story.setProject(scanner.nextLine());
+                    System.out.println("Bitte geben Sie eine Beschreibung ein:");
+                    new_user_story.setDescription(scanner.nextLine());
+                    System.out.println("Bitte geben Sie Akzeptanzkriterien ein:");
+                    new_user_story.setAcceptanceCriteria(scanner.nextLine());
+                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Aufwand ein:", new_user_story::setExpense, not_negative);
+                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Mehrwert ein:", new_user_story::setAddedValue, not_negative);
+                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für das Risiko ein:", new_user_story::setRisk, not_negative, not_zero);
+                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für die Strafe ein:", new_user_story::setPenalty, not_negative);
+                    new_user_story.setPriority((double) (new_user_story.getAddedValue() +
+                            new_user_story.getExpense() +
+                            new_user_story.getPenalty())
+                            / new_user_story.getRisk());
+                    addUserStory(new_user_story);
+                }
+                case "search" ->
+                {
+                    if (strings.length == 1)
+                    {
+                        System.out.print("Bitte geben Sie eine ID ein \u001B[90m(z.B. " + UUID.randomUUID().toString().split("-")[0] + ")\u001B[0m: ");
 
-                System.out.println("Bitte geben Sie einen Wert für das Projekt ein:");
-                new_user_story.setProject(scanner.nextLine());
+                        var id = scanner.nextLine();
+                        var user_storys = getUserStorys(id);
+                        if (user_storys.isEmpty())
+                        {
+                            System.out.println("Keine UserStory mit der ID " + id + " gefunden!");
+                        } else
+                        {
+                            if (user_storys.size() == 1)
+                            {
+                                System.out.println("Eine UserStory mit der ID " + id + " gefunden!");
+                            } else
+                            {
+                                // output all found user storys
+                                for (UserStory user_story : user_storys)
+                                {
+                                    System.out.println(user_story + "\n");
+                                }
+                            }
+                        }
+                    } else
+                    {
+                        // search for string[1] in all user storys
+                        var search_term = strings[1];
+                        var found = new ArrayList<UserStory>();
+                        for (UserStory user_story : liste)
+                        {
+                            if (user_story.toString().contains(search_term))
+                            {
+                                found.add(user_story);
+                            }
+                        }
 
-                System.out.println("Bitte geben Sie eine Beschreibung ein:");
-                new_user_story.setDescription(scanner.nextLine());
+						if (found.isEmpty())
+						{
+							System.out.println("Keine UserStory mit dem Suchbegriff " + search_term + " gefunden!");
+						}
 
-                System.out.println("Bitte geben Sie Akzeptanzkriterien ein:");
-                new_user_story.setAcceptanceCriteria(scanner.nextLine());
+                        for (UserStory user_story : found)
+                        {
+                            System.out.println(user_story + "\n");
+                        }
+                    }
+                }
+                case "store" ->
+                {
+                    // Beispiel-Code
+                    UserStory userStory = new UserStory();
+                    this.addUserStory(userStory);
+                    this.store();
+                }
+                case "load" -> this.load();
+                case "exit" ->
+                {
+                    System.out.println("Programm wird beendet!");
+                    System.exit(0);
+                }
+				case "add_example_user-story" ->
+				{
+					var example_user_story = new UserStory();
 
-                tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Aufwand ein:", new_user_story::setExpense);
+					example_user_story.setId(UUID.randomUUID());
+					example_user_story.setTitel("Beispiel-User-Story");
+					example_user_story.setProject("Coll@HBRS");
+					example_user_story.setDescription("Dies ist eine Beispiel-User-Story");
+					example_user_story.setAcceptanceCriteria("Diese User-Story ist ein Beispiel");
+					example_user_story.setExpense(1);
+					example_user_story.setAddedValue(1);
+					example_user_story.setRisk(1);
+					example_user_story.setPenalty(1);
+					example_user_story.setPriority(1);
 
-                tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Mehrwert ein:", new_user_story::setAddedValue);
-
-                tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für das Risiko ein:", new_user_story::setRisk);
-
-                tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für die Strafe ein:", new_user_story::setPenalty);
-
-                // Formel nach Gloger
-                new_user_story.setPriority((double) (new_user_story.getAddedValue() +
-													new_user_story.getExpense() +
-													new_user_story.getPenalty())
-											/ new_user_story.getRisk());
-
-                addUserStory(new_user_story);
-            }
-
-            if (strings[0].equals("search"))
-            {
-                // Suche nach einer bestimmten UserStory
-                // this.getUserStory( id ) um das Objekt zu erhalten.
-            }
-
-            if (strings[0].equals("store"))
-            {
-                // Beispiel-Code
-                UserStory userStory = new UserStory();
-                this.addUserStory(userStory);
-                this.store();
-            }
-
-            if (strings[0].equals("load"))
-            {
-                this.load();
-            }
-
-            if (strings[0].equals("exit"))
-            {
-                System.out.println("Programm wird beendet!");
-                System.exit(0);
+					addUserStory(example_user_story);
+				}
+                default -> System.out.println("Der Befehl '" + strings[0] + "' ist nicht bekannt!");
             }
         } // Ende der Schleife
     }
@@ -334,15 +409,16 @@ public class Container
      * @param id
      * @return
      */
-    private UserStory getUserStory(UUID id)
+    private List<UserStory> getUserStorys(String id)
     {
+		List<UserStory> found = new ArrayList<>();
         for (UserStory userStory : liste)
         {
-            if (id == userStory.getId())
+            if (userStory.getId().toString().startsWith(id))
             {
-                return userStory;
+                found.add(userStory);
             }
         }
-        return null;
+        return found;
     }
 }

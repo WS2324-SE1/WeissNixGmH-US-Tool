@@ -133,6 +133,11 @@ public class UserStory implements Comparable<UserStory>, Serializable
         this.mAcceptanceCriteria = acceptanceCriteria;
     }
 
+
+    public String toString(){
+        return this.mTitel + "@" + this.mProject + " - " + this.mId.toString().split("-")[0];
+    }
+
     /*
      * Methode zum Vergleich zweier UserStories.
      * Vergleich ist implementiert auf Basis des Vergleichs
