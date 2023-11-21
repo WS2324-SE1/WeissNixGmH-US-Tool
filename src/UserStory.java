@@ -1,10 +1,15 @@
 import java.io.Serializable;
+import java.util.UUID;
 
-    public class UserStory implements Comparable<UserStory>, Serializable {
+public class UserStory implements Comparable<UserStory>, Serializable {
 
         String mTitel;
+
+        String mDescription;
+
+        String mAcceptanceCriteria;
         int mExpense = 0;
-        int mId = 0;
+        UUID mId;
         int mAddedValue = 0;
         int mRisk = 0;
         int mPenalty = 0;
@@ -21,7 +26,7 @@ import java.io.Serializable;
         String mProject;
 
 
-        public UserStory(int id, String titel, int added_value, int penalty,
+        public UserStory(UUID id, String titel, int added_value, int penalty,
                          int expense, int risk, double prio) {
             this.mId = id;
             this.mTitel = titel;
@@ -55,10 +60,10 @@ import java.io.Serializable;
         public void setExpense(int mExpense) {
             this.mExpense = mExpense;
         }
-        public int getId() {
+        public UUID getId() {
             return mId;
         }
-        public void setId(int mId) {
+        public void setId(UUID mId) {
             this.mId = mId;
         }
         public int getAddedValue() {
@@ -78,6 +83,22 @@ import java.io.Serializable;
         }
         public void setPenalty(int mPenalty) {
             this.mPenalty = mPenalty;
+        }
+
+        public String getDescription() {
+            return mDescription;
+        }
+
+        public void setDescription(String description) {
+            this.mDescription = description;
+        }
+
+        public String getAcceptanceCriteria() {
+            return mAcceptanceCriteria;
+        }
+
+        public void setAcceptanceCriteria(String acceptanceCriteria) {
+            this.mAcceptanceCriteria = acceptanceCriteria;
         }
 
         /*

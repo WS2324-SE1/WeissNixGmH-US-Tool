@@ -1,6 +1,6 @@
 import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 /*
  * Klasse zum Management sowie zur Eingabe unnd Ausgabe von User-Stories.
@@ -28,50 +28,59 @@ import java.util.stream.Collectors;
 public class Container {
 	 
 	// Interne ArrayList zur Abspeicherung der Objekte vom Type UserStory
-	private List<UserStory> liste = null;
+	private List<UserStory> liste;
 	
 	// Statische Klassen-Variable, um die Referenz
-	// auf das einzige Container-Objekt abzuspeichern
-	// Diese Variante sei thread-safe, so hat Hr. P. es gehört... stimmt das? --> Richtig!
+	// auf das einzige Container-Objekt abzuspeichern,
+	// diese Variante sei thread-safe, so hat Hr. P. es gehört ... stimmt das? → Richtig!
 	// Nachteil: ggf. geringer Speicherbedarf, da Singleton zu Programmstart schon erzeugt
-	// --> Falsch, es besteht direkt ein hoher Speicherbedarf!
-	private static Container instance = new Container();
+	// → Falsch, es besteht direkt ein hoher Speicherbedarf!
+	private static final Container mInstance = new Container();
 	
 	// URL der Datei, in der die Objekte gespeichert werden 
 	final static String LOCATION = "allStories.ser";
 
-	/**
-	 * Liefert ein Singleton zurück.
-	 * @return
-	 */
 	public static Container getInstance() {
-		return instance;
+		return mInstance;
 	}
 	
 	/**
-	 * Vorschriftsmäßiges Ueberschreiben des Konstruktors (private) gemaess Singleton-Pattern (oder?)
-	 * Nun auf private gesetzt! Vorher ohne Access Qualifier (--> dann package-private)
+	 * Vorschriftsmäßiges Überschreiben des Konstruktors (private) gemäss Singleton-Pattern (oder?)
+	 * nun auf private gesetzt! Vorher ohne Access Qualifier (--> dann package-private)
 	 */
 	private Container(){
-		liste = new ArrayList<UserStory>();
+		liste = new ArrayList<>();
 	}
 	
 	/**
 	 * Start-Methoden zum Starten des Programms 
-	 * (hier koennen ggf. weitere Initialisierungsarbeiten gemacht werden spaeter)
+	 * (hier können ggf. weitere Initialisierungsarbeiten gemacht werden später)
 	 */
 	public static void main (String[] args) throws Exception {
 		Container con = Container.getInstance();
 		con.startEingabe(); 
 	}
+
+	//takes a lambda expression as parameter
+	private void tryTillNumberEntered(Scanner scanner, String message, Consumer<Integer> consumer) {
+		while (true) {
+			try {
+				System.out.println(message);
+				consumer.accept(Integer.parseInt(scanner.nextLine()));
+				break;
+			} catch (NumberFormatException e) {
+				System.out.println("Bitte geben Sie eine Zahl ein!");
+			}
+		}
+	}
 	
 	/*
-	 * Diese Methode realisiert eine Eingabe ueber einen Scanner
+	 * Diese Methode realisiert eine Eingabe über einen Scanner
 	 * Alle Exceptions werden an den aufrufenden Context (hier: main) weitergegeben (throws)
 	 * Das entlastet den Entwickler zur Entwicklungszeit und den Endanwender zur Laufzeit
 	 */
-	public void startEingabe() throws ContainerException, Exception {
-		String strInput = null;
+	public void startEingabe() throws Exception {
+		String strInput;
 		
 		// Initialisierung des Eingabe-View
 		Scanner scanner = new Scanner( System.in );
@@ -95,17 +104,57 @@ public class Container {
 				startAusgabe();
 			}
 			// Auswahl der bisher implementierten Befehle:
-			if ( strings[0].equals("enter") ) {
-				// Daten einlesen ...
-				// this.addUserStory( new UserStory( data ) ) um das Objekt in die Liste einzufügen.
+			if ( strings[0].equals("enter") )
+			{
+				var new_user_story = new UserStory();
+
+				new_user_story.setId(UUID.randomUUID());
+
+				System.out.println("Bitte geben Sie einen Titel ein:");
+				new_user_story.setTitel(scanner.nextLine());
+
+				System.out.println("Bitte geben Sie einen Wert für das Projekt ein:");
+				new_user_story.setProject(scanner.nextLine());
+
+				System.out.println("Bitte geben Sie eine Beschreibung ein:");
+				new_user_story.setDescription(scanner.nextLine());
+
+				System.out.println("Bitte geben Sie Akzeptanzkriterien ein:");
+				new_user_story.setAcceptanceCriteria(scanner.nextLine());
+
+				tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Aufwand ein:", new_user_story::setExpense);
+
+				tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Mehrwert ein:", new_user_story::setAddedValue);
+
+				tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für das Risiko ein:", new_user_story::setRisk);
+
+				tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für die Strafe ein:", new_user_story::setPenalty);
+
+				// Formel nach Gloger
+				new_user_story.setPriority( (new_user_story.getAddedValue() + new_user_story.getExpense() + new_user_story.getPenalty()) / new_user_story.getRisk() );
+
+				addUserStory(new_user_story);
+			}
+
+			if ( strings[0].equals("search") ) {
+				// Suche nach einer bestimmten UserStory
+				// this.getUserStory( id ) um das Objekt zu erhalten.
 			}
 								
 			if (  strings[0].equals("store")  ) {
 				// Beispiel-Code
 				UserStory userStory = new UserStory();
-				userStory.setId(22);
 				this.addUserStory( userStory );
 				this.store();
+			}
+
+			if (  strings[0].equals("load")  ) {
+				this.load();
+			}
+
+			if (  strings[0].equals("exit")  ) {
+				System.out.println("Programm wird beendet!");
+				System.exit(0);
 			}
 		} // Ende der Schleife
 	}
@@ -116,12 +165,12 @@ public class Container {
 	public void startAusgabe() {
 
 		// Hier möchte Herr P. die Liste mit einem eigenen Sortieralgorithmus sortieren und dann
-		// ausgeben. Allerdings weiss der Student hier nicht weiter
+		// ausgeben. Allerdings weiß der Student hier nicht weiter
 
 		// [Sortierung ausgelassen]
 		Collections.sort( this.liste );
 
-		// Klassische Ausgabe ueber eine For-Each-Schleife
+		// Klassische Ausgabe über eine For-Each-Schleife
 		for (UserStory story : liste) {
 			System.out.println(story.toString());
 		}
@@ -132,7 +181,7 @@ public class Container {
 		List<UserStory> reduzierteListe = this.liste.stream()
 				.filter( story -> story.getProject().equals("Coll@HBRS") )
 				.filter(  story -> story.getRisk()  >= 5 )
-				.collect( Collectors.toList() );
+				.toList();
 	}
 
 	/*
@@ -207,7 +256,7 @@ public class Container {
 	 * @return
 	 */
 	private boolean contains( UserStory userStory ) {
-		int ID = userStory.getId();
+		var ID = userStory.getId();
 		for ( UserStory userStory1 : liste) {
 			if ( userStory1.getId() == ID ) {
 				return true;
@@ -239,7 +288,7 @@ public class Container {
 	 * @param id
 	 * @return
 	 */
-	private UserStory getUserStory(int id) {
+	private UserStory getUserStory(UUID id) {
 		for ( UserStory userStory : liste) {
 			if (id == userStory.getId() ){
 				return userStory;
