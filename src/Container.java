@@ -116,11 +116,12 @@ public class Container
 
         // Initialisierung des Eingabe-View
         Scanner scanner = new Scanner(System.in);
+        System.out.println("UserStory-Tool V1.0 by Maximilian Fetz");
+        System.out.println("Bitte geben Sie einen Befehl ein (help für Hilfe):");
 
         while (true)
         {
             // Ausgabe eines Texts zur Begruessung
-            System.out.println("UserStory-Tool V1.0 by Julius P. (dedicated to all my friends)");
 
             System.out.print("> ");
             strInput = scanner.nextLine();
