@@ -53,6 +53,11 @@ public class UserStory implements Comparable<UserStory>, Serializable
         this.mPriority = mPriority;
     }
 
+    public void calculatePriority()
+    {
+        this.mPriority = (double) (this.mAddedValue - this.mPenalty) / (double) (this.mExpense + this.mRisk);
+    }
+
     public String getTitel()
     {
         return mTitel;

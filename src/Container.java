@@ -1,7 +1,6 @@
 import java.io.*;
 import java.util.*;
-import java.util.function.Consumer;
-
+import java.util.function.*;
 /*
  * Klasse zum Management sowie zur Eingabe unnd Ausgabe von User-Stories.
  * Die Anwendung wird über dies Klasse auch gestartet (main-Methode hier vorhanden)
@@ -80,6 +79,7 @@ public class Container
 
 
     //takes a lambda expression as parameter and a variable number of validators (also lambda expressions)
+    @SafeVarargs
     private void tryTillNumberEntered(Scanner scanner, String message, Consumer<Integer> consumer, Consumer<Integer>... validators)
     {
         while (true)
@@ -141,79 +141,50 @@ public class Container
                         \t- exit
                         \t- help""");
 
-                // Auswahl der bisher implementierten Befehle:
-                case "dump" -> startAusgabe();
+                case "dump" -> {
+                    if (liste.isEmpty())
+                    {
+                        System.out.println("Keine UserStorys vorhanden!");
+                    }
+                    else
+                    {
+                        List<Function<UserStory, Boolean>> filters = new ArrayList<>();
+                        Comparator<UserStory> sort_comparator = UserStory::compareTo;
+                        // nach filtern fragen und optionen präsentieren
+                        System.out.println("Möchten Sie die Liste filtern? (y/n)");
+                        var filter = scanner.nextLine();
+                        if (filter.equals("y"))
+                        {
+                            ask_for_filters(scanner, filters);
+                        }
 
-                // Auswahl der bisher implementierten Befehle:
+                        System.out.println("Möchten Sie die Liste sortieren? (y/n)");
+                        var sort = scanner.nextLine();
+                        if (sort.equals("y"))
+                        {
+                            sort_comparator = ask_for_sorting(scanner, sort_comparator);
+                        }
+
+                        startAusgabe(sort_comparator, filters);
+                    }
+                }
+
                 case "enter" ->
                 {
                     var new_user_story = new UserStory();
-                    new_user_story.setId(UUID.randomUUID());
-                    System.out.println("Bitte geben Sie einen Titel ein:");
-                    new_user_story.setTitel(scanner.nextLine());
-                    System.out.println("Bitte geben Sie einen Wert für das Projekt ein:");
-                    new_user_story.setProject(scanner.nextLine());
-                    System.out.println("Bitte geben Sie eine Beschreibung ein:");
-                    new_user_story.setDescription(scanner.nextLine());
-                    System.out.println("Bitte geben Sie Akzeptanzkriterien ein:");
-                    new_user_story.setAcceptanceCriteria(scanner.nextLine());
-                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Aufwand ein:", new_user_story::setExpense, not_negative);
-                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Mehrwert ein:", new_user_story::setAddedValue, not_negative);
-                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für das Risiko ein:", new_user_story::setRisk, not_negative, not_zero);
-                    tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für die Strafe ein:", new_user_story::setPenalty, not_negative);
-                    new_user_story.setPriority((double) (new_user_story.getAddedValue() +
-                            new_user_story.getExpense() +
-                            new_user_story.getPenalty())
-                            / new_user_story.getRisk());
+                    ask_for_user_story_parameters(new_user_story, scanner);
                     addUserStory(new_user_story);
                 }
+
                 case "search" ->
                 {
                     if (strings.length == 1)
                     {
-                        System.out.print("Bitte geben Sie eine ID ein \u001B[90m(z.B. " + UUID.randomUUID().toString().split("-")[0] + ")\u001B[0m: ");
-
-                        var id = scanner.nextLine();
-                        var user_storys = getUserStorys(id);
-                        if (user_storys.isEmpty())
-                        {
-                            System.out.println("Keine UserStory mit der ID " + id + " gefunden!");
-                        } else
-                        {
-                            if (user_storys.size() == 1)
-                            {
-                                System.out.println("Eine UserStory mit der ID " + id + " gefunden!");
-                            } else
-                            {
-                                // output all found user storys
-                                for (UserStory user_story : user_storys)
-                                {
-                                    System.out.println(user_story + "\n");
-                                }
-                            }
-                        }
-                    } else
+                        search(scanner);
+                    }
+                    else
                     {
-                        // search for string[1] in all user storys
-                        var search_term = strings[1];
-                        var found = new ArrayList<UserStory>();
-                        for (UserStory user_story : liste)
-                        {
-                            if (user_story.toString().contains(search_term))
-                            {
-                                found.add(user_story);
-                            }
-                        }
-
-						if (found.isEmpty())
-						{
-							System.out.println("Keine UserStory mit dem Suchbegriff " + search_term + " gefunden!");
-						}
-
-                        for (UserStory user_story : found)
-                        {
-                            System.out.println(user_story + "\n");
-                        }
+                        search_for_serch_term(strings);
                     }
                 }
                 case "store" ->
@@ -231,51 +202,398 @@ public class Container
                 }
 				case "add_example_user-story" ->
 				{
-					var example_user_story = new UserStory();
+                    add_example_user_stories();
 
-					example_user_story.setId(UUID.randomUUID());
-					example_user_story.setTitel("Beispiel-User-Story");
-					example_user_story.setProject("Coll@HBRS");
-					example_user_story.setDescription("Dies ist eine Beispiel-User-Story");
-					example_user_story.setAcceptanceCriteria("Diese User-Story ist ein Beispiel");
-					example_user_story.setExpense(1);
-					example_user_story.setAddedValue(1);
-					example_user_story.setRisk(1);
-					example_user_story.setPenalty(1);
-					example_user_story.setPriority(1);
-
-					addUserStory(example_user_story);
-				}
+                }
                 default -> System.out.println("Der Befehl '" + strings[0] + "' ist nicht bekannt!");
             }
         } // Ende der Schleife
     }
 
-    /**
-     * Diese Methode realisiert die Ausgabe.
-     */
-    public void startAusgabe()
+    private static Comparator<UserStory> ask_for_sorting(Scanner scanner, Comparator<UserStory> sort_comparator)
     {
+        // alle Sortieroptionen auf einmal zur auswahl präsentieren
+        System.out.println("Wonach möchten Sie sortieren?");
+        System.out.println("\t- Projekt");
+        System.out.println("\t- Titel");
+        System.out.println("\t- Beschreibung");
+        System.out.println("\t- Akzeptanzkriterien");
+        System.out.println("\t- Aufwand");
+        System.out.println("\t- Mehrwert");
+        System.out.println("\t- Risiko");
+        System.out.println("\t- Strafe");
+        System.out.println("\t- Priorität");
+        System.out.println("Bitte geben Sie die Sortieroption ein:");
+        var sort_option = scanner.nextLine();
 
-        // Hier möchte Herr P. die Liste mit einem eigenen Sortieralgorithmus sortieren und dann
-        // ausgeben. Allerdings weiß der Student hier nicht weiter
-
-        // [Sortierung ausgelassen]
-        Collections.sort(this.liste);
-
-        // Klassische Ausgabe über eine For-Each-Schleife
-        for (UserStory story : liste)
+        switch (sort_option)
         {
-            System.out.println(story.toString());
+            case "Projekt" -> sort_comparator = Comparator.comparing(UserStory::getProject);
+            case "Titel" -> sort_comparator = Comparator.comparing(UserStory::getTitel);
+            case "Beschreibung" -> sort_comparator = Comparator.comparing(UserStory::getDescription);
+            case "Akzeptanzkriterien" -> sort_comparator = Comparator.comparing(UserStory::getAcceptanceCriteria);
+            case "Aufwand" -> sort_comparator = Comparator.comparing(UserStory::getExpense);
+            case "Mehrwert" -> sort_comparator = Comparator.comparing(UserStory::getAddedValue);
+            case "Risiko" -> sort_comparator = Comparator.comparing(UserStory::getRisk);
+            case "Strafe" -> sort_comparator = Comparator.comparing(UserStory::getPenalty);
+            case "Priorität" -> sort_comparator = Comparator.comparing(UserStory::getPriority);
+            default -> System.out.println("Die Sortieroption '" + sort_option + "' ist nicht bekannt!");
+        }
+        return sort_comparator;
+    }
+
+    private static void ask_for_filters(Scanner scanner, List<Function<UserStory, Boolean>> filters)
+    {
+        System.out.println("Wonach möchten Sie filtern?");
+        System.out.println("\t- Projekt");
+        System.out.println("\t- Titel");
+        System.out.println("\t- Beschreibung");
+        System.out.println("\t- Akzeptanzkriterien");
+        System.out.println("\t- Aufwand");
+        System.out.println("\t- Mehrwert");
+        System.out.println("\t- Risiko");
+        System.out.println("\t- Strafe");
+        System.out.println("\t- Priorität");
+        System.out.println("Bitte geben Sie die Filteroption ein:");
+        var filter_option = scanner.nextLine();
+
+        switch (filter_option)
+        {
+            case "Projekt" -> {
+                System.out.println("Bitte geben Sie den Projektnamen ein:");
+                var project_name = scanner.nextLine();
+                filters.add((user_story) -> user_story.getProject().equals(project_name));
+            }
+            case "Titel" -> {
+                System.out.println("Bitte geben Sie den Titel oder einen Teil des Titels ein:");
+                var title = scanner.nextLine();
+                filters.add((user_story) -> user_story.getTitel().contains(title));
+            }
+            case "Beschreibung" -> {
+                System.out.println("Bitte geben Sie die Beschreibung oder einen Teil der Beschreibung ein:");
+                var description = scanner.nextLine();
+                filters.add((user_story) -> user_story.getDescription().contains(description));
+            }
+            case "Akzeptanzkriterien" -> {
+                System.out.println("Bitte geben Sie die Akzeptanzkriterien oder einen Teil der Akzeptanzkriterien ein:");
+                var acceptance_criteria = scanner.nextLine();
+                filters.add((user_story) -> user_story.getAcceptanceCriteria().contains(acceptance_criteria));
+            }
+            case "Aufwand" ->
+            {
+                System.out.println("Bitte geben Sie den Aufwand ein (schreibe > oder < vor die Zahl, um nach größer oder kleiner zu filtern):");
+                var expense = scanner.nextLine();
+                if (expense.startsWith(">"))
+                {
+                    var expense_number = Integer.parseInt(expense.substring(1));
+                    filters.add((user_story) -> user_story.getExpense() > expense_number);
+                } else if (expense.startsWith("<"))
+                {
+                    var expense_number = Integer.parseInt(expense.substring(1));
+                    filters.add((user_story) -> user_story.getExpense() < expense_number);
+                } else
+                {
+                    var expense_number = Integer.parseInt(expense);
+                    filters.add((user_story) -> user_story.getExpense() == expense_number);
+                }
+            }
+            case "Mehrwert" ->
+            {
+                System.out.println("Bitte geben Sie den Mehrwert ein (schreibe > oder < vor die Zahl, um nach größer oder kleiner zu filtern):");
+                var added_value = scanner.nextLine();
+                if (added_value.startsWith(">"))
+                {
+                    var added_value_number = Integer.parseInt(added_value.substring(1));
+                    filters.add((user_story) -> user_story.getAddedValue() > added_value_number);
+                } else if (added_value.startsWith("<"))
+                {
+                    var added_value_number = Integer.parseInt(added_value.substring(1));
+                    filters.add((user_story) -> user_story.getAddedValue() < added_value_number);
+                } else
+                {
+                    var added_value_number = Integer.parseInt(added_value);
+                    filters.add((user_story) -> user_story.getAddedValue() == added_value_number);
+                }
+            }
+            case "Risiko" ->
+            {
+                System.out.println("Bitte geben Sie das Risiko ein (schreibe > oder < vor die Zahl, um nach größer oder kleiner zu filtern):");
+                var risk = scanner.nextLine();
+                if (risk.startsWith(">"))
+                {
+                    var risk_number = Integer.parseInt(risk.substring(1));
+                    filters.add((user_story) -> user_story.getRisk() > risk_number);
+                } else if (risk.startsWith("<"))
+                {
+                    var risk_number = Integer.parseInt(risk.substring(1));
+                    filters.add((user_story) -> user_story.getRisk() < risk_number);
+                } else
+                {
+                    var risk_number = Integer.parseInt(risk);
+                    filters.add((user_story) -> user_story.getRisk() == risk_number);
+                }
+            }
+            case "Strafe" ->
+            {
+                System.out.println("Bitte geben Sie die Strafe ein (schreibe > oder < vor die Zahl, um nach größer oder kleiner zu filtern):");
+                var penalty = scanner.nextLine();
+                if (penalty.startsWith(">"))
+                {
+                    var penalty_number = Integer.parseInt(penalty.substring(1));
+                    filters.add((user_story) -> user_story.getPenalty() > penalty_number);
+                } else if (penalty.startsWith("<"))
+                {
+                    var penalty_number = Integer.parseInt(penalty.substring(1));
+                    filters.add((user_story) -> user_story.getPenalty() < penalty_number);
+                } else
+                {
+                    var penalty_number = Integer.parseInt(penalty);
+                    filters.add((user_story) -> user_story.getPenalty() == penalty_number);
+                }
+            }
+            case "Priorität" ->
+            {
+                System.out.println("Bitte geben Sie die Priorität ein (schreibe > oder < vor die Zahl, um nach größer oder kleiner zu filtern):");
+                var priority = scanner.nextLine();
+                if (priority.startsWith(">"))
+                {
+                    var priority_number = Integer.parseInt(priority.substring(1));
+                    filters.add((user_story) -> user_story.getPriority() > priority_number);
+                } else if (priority.startsWith("<"))
+                {
+                    var priority_number = Integer.parseInt(priority.substring(1));
+                    filters.add((user_story) -> user_story.getPriority() < priority_number);
+                } else
+                {
+                    var priority_number = Integer.parseInt(priority);
+                    filters.add((user_story) -> user_story.getPriority() == priority_number);
+                }
+            }
+            default -> System.out.println("Der Filter '" + filter_option + "' ist nicht bekannt!");
+        }
+    }
+
+    private void ask_for_user_story_parameters(UserStory new_user_story, Scanner scanner)
+    {
+        new_user_story.setId(UUID.randomUUID());
+        System.out.println("Bitte geben Sie einen Titel ein:");
+        new_user_story.setTitel(scanner.nextLine());
+        System.out.println("Bitte geben Sie einen Wert für das Projekt ein:");
+        new_user_story.setProject(scanner.nextLine());
+        System.out.println("Bitte geben Sie eine Beschreibung ein:");
+        new_user_story.setDescription(scanner.nextLine());
+        System.out.println("Bitte geben Sie Akzeptanzkriterien ein:");
+        new_user_story.setAcceptanceCriteria(scanner.nextLine());
+        tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Aufwand ein:", new_user_story::setExpense, not_negative);
+        tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für den Mehrwert ein:", new_user_story::setAddedValue, not_negative);
+        tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für das Risiko ein:", new_user_story::setRisk, not_negative, not_zero);
+        tryTillNumberEntered(scanner, "Bitte geben Sie einen Wert für die Strafe ein:", new_user_story::setPenalty, not_negative);
+        new_user_story.calculatePriority();
+    }
+
+    private void search_for_serch_term(String[] strings)
+    {
+        var search_term = strings[1];
+        var found = new ArrayList<UserStory>();
+        for (UserStory user_story : liste)
+        {
+            if (user_story.toString().contains(search_term))
+            {
+                found.add(user_story);
+            }
         }
 
-        // [Variante mit forEach-Methode / Streams (--> Kapitel 9, Lösung Übung Nr. 2)?
-        //  Gerne auch mit Beachtung der neuen US1
-        // (Filterung Projekt = "ein Wert (z.B. Coll@HBRS)" und Risiko >=5
-        List<UserStory> reduzierteListe = this.liste.stream()
-                .filter(story -> story.getProject().equals("Coll@HBRS"))
-                .filter(story -> story.getRisk() >= 5)
-                .toList();
+        if (found.isEmpty())
+        {
+            System.out.println("Keine UserStory mit dem Suchbegriff " + search_term + " gefunden!");
+        }
+
+        for (UserStory user_story : found)
+        {
+            System.out.println(user_story + "\n");
+        }
+    }
+
+    private void search(Scanner scanner)
+    {
+        System.out.print("Bitte geben Sie eine ID ein \u001B[90m(z.B. " + UUID.randomUUID().toString().split("-")[0] + ")\u001B[0m: ");
+
+        var id = scanner.nextLine();
+        var user_storys = getUserStorys(id);
+        if (user_storys.isEmpty())
+        {
+            System.out.println("Keine UserStory mit der ID " + id + " gefunden!");
+        } else
+        {
+            if (user_storys.size() == 1)
+            {
+                System.out.println("Eine UserStory mit der ID " + id + " gefunden!");
+            } else
+            {
+                // output all found user storys
+                for (UserStory user_story : user_storys)
+                {
+                    System.out.println(user_story + "\n");
+                }
+            }
+        }
+    }
+
+    private void add_example_user_stories() throws ContainerException
+    {
+        var first_example_user_story = new UserStory();
+        first_example_user_story.setId(UUID.randomUUID());
+        first_example_user_story.setTitel("Erste Beispiel-UserStory");
+        first_example_user_story.setProject("Beispiel-Projekt");
+        first_example_user_story.setDescription("Dies ist eine Beispiel-UserStory");
+        first_example_user_story.setAcceptanceCriteria("Dies ist ein Beispiel für Akzeptanzkriterien");
+        first_example_user_story.setExpense(1);
+        first_example_user_story.setAddedValue(10);
+        first_example_user_story.setRisk(1);
+        first_example_user_story.setPenalty(1);
+        first_example_user_story.calculatePriority();
+        addUserStory(first_example_user_story);
+
+
+        var second_example_user_story = new UserStory();
+        second_example_user_story.setId(UUID.randomUUID());
+        second_example_user_story.setTitel("Zweite Beispiel-UserStory");
+        second_example_user_story.setProject("Beispiel-Projekt");
+        second_example_user_story.setDescription("Dies ist eine Beispiel-UserStory");
+        second_example_user_story.setAcceptanceCriteria("Dies ist ein Beispiel für Akzeptanzkriterien");
+        second_example_user_story.setExpense(2);
+        second_example_user_story.setAddedValue(20);
+        second_example_user_story.setRisk(2);
+        second_example_user_story.setPenalty(2);
+        second_example_user_story.calculatePriority();
+        addUserStory(second_example_user_story);
+
+        var third_example_user_story = new UserStory();
+        third_example_user_story.setId(UUID.randomUUID());
+        third_example_user_story.setTitel("Dritte Beispiel-UserStory");
+        third_example_user_story.setProject("Beispiel-Projekt");
+        third_example_user_story.setDescription("Dies ist eine Beispiel-UserStory");
+        third_example_user_story.setAcceptanceCriteria("Dies ist ein Beispiel für Akzeptanzkriterien");
+        third_example_user_story.setExpense(3);
+        third_example_user_story.setAddedValue(30);
+        third_example_user_story.setRisk(3);
+        third_example_user_story.setPenalty(3);
+        third_example_user_story.calculatePriority();
+        addUserStory(third_example_user_story);
+
+        var fourth_example_user_story = new UserStory();
+        fourth_example_user_story.setId(UUID.randomUUID());
+        fourth_example_user_story.setTitel("Vierte Beispiel-UserStory");
+        fourth_example_user_story.setProject("Beispiel-Projekt");
+        fourth_example_user_story.setDescription("Dies ist eine weitere Beispiel-UserStory");
+        fourth_example_user_story.setAcceptanceCriteria("Akzeptanzkriterien für die vierte UserStory");
+        fourth_example_user_story.setExpense(5);
+        fourth_example_user_story.setAddedValue(15);
+        fourth_example_user_story.setRisk(4);
+        fourth_example_user_story.setPenalty(5);
+        fourth_example_user_story.calculatePriority();
+        addUserStory(fourth_example_user_story);
+
+        var fifth_example_user_story = new UserStory();
+        fifth_example_user_story.setId(UUID.randomUUID());
+        fifth_example_user_story.setTitel("Fünfte Beispiel-UserStory");
+        fifth_example_user_story.setProject("Beispiel-Projekt");
+        fifth_example_user_story.setDescription("Ein weiteres Beispiel einer UserStory");
+        fifth_example_user_story.setAcceptanceCriteria("Spezifische Akzeptanzkriterien für die fünfte Story");
+        fifth_example_user_story.setExpense(1);
+        fifth_example_user_story.setAddedValue(25);
+        fifth_example_user_story.setRisk(2);
+        fifth_example_user_story.setPenalty(3);
+        fifth_example_user_story.calculatePriority();
+        addUserStory(fifth_example_user_story);
+
+        var sixth_example_user_story = new UserStory();
+        sixth_example_user_story.setId(UUID.randomUUID());
+        sixth_example_user_story.setTitel("Optimierung der Ladezeiten");
+        sixth_example_user_story.setProject("Performance-Projekt");
+        sixth_example_user_story.setDescription("Verbesserung der Ladezeiten unserer Hauptseite um 50%");
+        sixth_example_user_story.setAcceptanceCriteria("Seite lädt in weniger als 2 Sekunden");
+        sixth_example_user_story.setExpense(8);
+        sixth_example_user_story.setAddedValue(40);
+        sixth_example_user_story.setRisk(5);
+        sixth_example_user_story.setPenalty(7);
+        sixth_example_user_story.calculatePriority();
+        addUserStory(sixth_example_user_story);
+
+        var seventh_example_user_story = new UserStory();
+        seventh_example_user_story.setId(UUID.randomUUID());
+        seventh_example_user_story.setTitel("Integration eines Chatbots");
+        seventh_example_user_story.setProject("Kundenservice-Verbesserung");
+        seventh_example_user_story.setDescription("Implementierung eines intelligenten Chatbots zur Kundensupport-Optimierung");
+        seventh_example_user_story.setAcceptanceCriteria("Chatbot löst 70% der Anfragen automatisch");
+        seventh_example_user_story.setExpense(6);
+        seventh_example_user_story.setAddedValue(50);
+        seventh_example_user_story.setRisk(4);
+        seventh_example_user_story.setPenalty(6);
+        seventh_example_user_story.calculatePriority();
+        addUserStory(seventh_example_user_story);
+
+        var eighth_example_user_story = new UserStory();
+        eighth_example_user_story.setId(UUID.randomUUID());
+        eighth_example_user_story.setTitel("Mobile App Sicherheitsupdate");
+        eighth_example_user_story.setProject("Mobile Sicherheit");
+        eighth_example_user_story.setDescription("Update der Sicherheitsfeatures der mobilen App zur Einhaltung neuer Datenschutzbestimmungen");
+        eighth_example_user_story.setAcceptanceCriteria("Erfüllung aller neuen Datenschutzstandards");
+        eighth_example_user_story.setExpense(9);
+        eighth_example_user_story.setAddedValue(30);
+        eighth_example_user_story.setRisk(7);
+        eighth_example_user_story.setPenalty(9);
+        eighth_example_user_story.calculatePriority();
+        addUserStory(eighth_example_user_story);
+    }
+
+    public static void printUserStoryTable(List<UserStory> userStories) {
+        System.out.println("+------------------------------------------------------------------------------------------------------------------+");
+        System.out.printf("| %-36s | %-30s | %-7s |\n", "Titel", "Projekt", "Priorität");
+        System.out.println("+------------------------------------------------------------------------------------------------------------------+");
+
+        for (UserStory story : userStories) {
+            System.out.printf("| %-36s | %-30s | %-7f |\n",
+                    story.getTitel(),
+                    story.getProject(),
+                    story.getPriority());
+        }
+
+        System.out.println("+--------------------------------------------------------+");
+    }
+
+    public void startAusgabe(Comparator<UserStory> comparator, List<Function<UserStory, Boolean>> filters)
+    {
+        // Ausgabe der Liste
+        if (liste.isEmpty())
+        {
+            System.out.println("Keine UserStorys vorhanden!");
+        } else
+        {
+            var user_storys_to_show = new ArrayList<UserStory>();
+            // sort list
+            liste.sort(comparator);
+            // filter list
+            for (UserStory user_story : liste)
+            {
+                boolean show = true;
+                for (Function<UserStory, Boolean> filter : filters)
+                {
+                    if (!show)
+                    {
+                        break;
+                    }
+                    show = filter.apply(user_story);
+                }
+                if (show)
+                {
+                    user_storys_to_show.add(user_story);
+                }
+            }
+
+            // output all user storys in a table format
+            printUserStoryTable(user_storys_to_show);
+        }
     }
 
     /*
@@ -285,8 +603,8 @@ public class Container
      */
     private void store() throws ContainerException
     {
-        ObjectOutputStream oos = null;
-        FileOutputStream fos = null;
+        ObjectOutputStream oos;
+        FileOutputStream fos;
         try
         {
             fos = new FileOutputStream(Container.LOCATION);
